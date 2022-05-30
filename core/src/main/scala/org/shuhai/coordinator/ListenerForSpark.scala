@@ -23,43 +23,47 @@ import org.apache.spark.SparkConf
 import org.apache.spark.internal.Logging
 import org.apache.spark.scheduler.{SparkListener, SparkListenerApplicationStart, SparkListenerTaskEnd, SparkListenerTaskStart}
 
-import java.io.FileWriter
+import java.io.{FileWriter, File}
 
 class ListenerForSpark(conf: SparkConf) extends SparkListener with Logging {
 
-  val recordElapsedTime = 10
+  val recordElapsedTime = 50
   var currentDuration = 0
   var runningTaskNum = 0
-  val sparkHome = Properties.envOrElse("SPARK_HOME","/home/root" )
+  var appId = ""
+  var appName = ""
+  val sparkHome: String = Properties.envOrElse("SPARK_HOME","/home/root" )
+  val reportPath: String = s"$sparkHome/dynamicParallelism"
+  val reports = new File(reportPath)
+  reports.mkdirs()
 
   override def onApplicationStart(applicationStart: SparkListenerApplicationStart): Unit = {
     logInfo("Coordinator: Applicaiton is staertd")
+    val timeTag = System.currentTimeMillis()
+    appId = applicationStart.appId.getOrElse(s"nil_$timeTag")
+    appName = applicationStart.appName
     val p = new Printer()
     p.start()
   }
 
   override def onTaskStart(taskStart: SparkListenerTaskStart): Unit = {
-    val taskId = taskStart.taskInfo.taskId
     runningTaskNum += 1
-    print(s"task Id is $taskId\n")
   }
 
   override def onTaskEnd(taskEnd: SparkListenerTaskEnd): Unit = {
-    val taskId = taskEnd.taskInfo.taskId
     runningTaskNum -= 1
-    print(s"task Id is $taskId\n")
   }
 
   class Printer extends Thread {
     override def run(): Unit = {
-      val taskParallelismFile = new FileWriter(s"$sparkHome/taskParallelism.csv",true)
       while (true) {
         Thread.sleep(recordElapsedTime)
+        val taskParallelismFile = new FileWriter(
+          s"$reportPath/taskParallelism_$appId.csv",true)
         currentDuration += recordElapsedTime
         taskParallelismFile.write(s"$currentDuration,$runningTaskNum\n")
-        print(s"current is $runningTaskNum\n")
+        logInfo(s"$appName have $runningTaskNum running tasks")
       }
-      taskParallelismFile.close()
     }
   }
 }
