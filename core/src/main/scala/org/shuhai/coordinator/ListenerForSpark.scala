@@ -27,7 +27,7 @@ import java.io.{FileWriter, File}
 
 class ListenerForSpark(conf: SparkConf) extends SparkListener with Logging {
 
-  val recordElapsedTime = 50
+  val recordElapsedTime = 500
   var currentDuration = 0
   var runningTaskNum = 0
   var appId = ""
