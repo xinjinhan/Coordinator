@@ -40,7 +40,7 @@ class ListenerForSpark(conf: SparkConf) extends SparkListener with Logging {
   override def onApplicationStart(applicationStart: SparkListenerApplicationStart): Unit = {
     logInfo("Coordinator: Applicaiton is staertd")
     val timeTag = System.currentTimeMillis()
-    appId = applicationStart.appId.getOrElse(s"nil_$timeTag")
+    appId = applicationStart.appId.getOrElse(s"$timeTag")
     appName = applicationStart.appName
     val p = new Printer()
     p.start()
@@ -59,7 +59,7 @@ class ListenerForSpark(conf: SparkConf) extends SparkListener with Logging {
       while (true) {
         Thread.sleep(recordElapsedTime)
         val taskParallelismFile = new FileWriter(
-          s"$reportPath/taskParallelism_$appId.csv",true)
+          s"$reportPath/${appName}_$appId.csv",true)
         currentDuration += recordElapsedTime
         taskParallelismFile.write(s"$currentDuration,$runningTaskNum\n")
         logInfo(s"$appName have $runningTaskNum running tasks")
