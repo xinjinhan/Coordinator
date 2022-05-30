@@ -63,6 +63,7 @@ class ListenerForSpark(conf: SparkConf) extends SparkListener with Logging {
         currentDuration += recordElapsedTime
         taskParallelismFile.write(s"$currentDuration,$runningTaskNum\n")
         logInfo(s"$appName have $runningTaskNum running tasks")
+        taskParallelismFile.close()
       }
     }
   }
