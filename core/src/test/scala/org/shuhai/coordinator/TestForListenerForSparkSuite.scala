@@ -30,7 +30,7 @@ class TestForListenerForSparkSuite extends AnyFunSuite with Matchers {
       .builder()
       .appName("a")
       .master("local[1]")
-      .config("spark.extraListeners", classOf[ListenerForSpark].getName)
+      .config("spark.extraListeners", classOf[CoordinatorListenerForSpark].getName)
       .getOrCreate()
 
     val slices = 2
