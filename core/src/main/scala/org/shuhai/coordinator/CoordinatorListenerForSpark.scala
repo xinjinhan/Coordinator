@@ -17,32 +17,30 @@
 
 package org.shuhai.coordinator
 
-import scala.util.Properties
 import org.apache.spark.SparkConf
 import org.apache.spark.internal.Logging
-import org.apache.spark.scheduler.{SparkListener, SparkListenerApplicationStart, SparkListenerExecutorAdded, SparkListenerExecutorRemoved, SparkListenerTaskEnd, SparkListenerTaskStart}
+import org.apache.spark.scheduler._
 
 import java.io.{File, FileWriter}
 import scala.collection.mutable
 import scala.io.Source
+import scala.util.Properties
 
-class ListenerForSpark(conf: SparkConf) extends SparkListener with Logging {
+class CoordinatorListenerForSpark(conf: SparkConf) extends SparkListener with Logging {
 
-  val sampleElapsedTime = 500
+  val sampleElapsedTime = 5
   var currentSampleTime = 0
   var runningTaskNum = 0
-  var currentTotalCores = 0
-  var currentExecutorIdToTotalCores: mutable.HashMap[String, Int] = _
+  var currentExecutorIdToTotalCores: mutable.HashMap[String, Int] = new mutable.HashMap[String, Int]()
   var appId = ""
   var appName = ""
   val sparkHome: String = Properties.envOrElse("SPARK_HOME","/home/root" )
   val reportPath: String = s"$sparkHome/coordinatorReport"
   val reports = new File(reportPath)
-
   reports.mkdirs()
 
   override def onApplicationStart(applicationStart: SparkListenerApplicationStart): Unit = {
-    logInfo("Coordinator: coordinator listener is started")
+    logInfo("Coordinator listener is started")
     val timeTag = System.currentTimeMillis()
     appId = applicationStart.appId.getOrElse(s"$timeTag")
     appName = applicationStart.appName
@@ -70,12 +68,13 @@ class ListenerForSpark(conf: SparkConf) extends SparkListener with Logging {
     override def run(): Unit = {
       while (true) {
         Thread.sleep(sampleElapsedTime)
+        var currentTotalCores = 0
         currentExecutorIdToTotalCores.foreach(c => currentTotalCores += c._2)
         val reportFile = new FileWriter(
           s"$reportPath/${appName}_$appId.csv",true)
         val reportFileSource = Source.fromFile(s"$reportPath/${appName}_$appId.csv")
         if (reportFileSource.getLines().isEmpty) {
-          reportFile.write("ApplicationName,SampleTime,RunningTaskNumber,TotalAvailableCPUCores,RatioOfTasksToTotalCPUCores")
+          reportFile.write("ApplicationName,SampleTime,RunningTaskNumber,TotalAvailableCPUCores,RatioOfTasksToTotalCPUCores\n")
         }
         currentSampleTime += sampleElapsedTime
         reportFile.write(s"" +
@@ -83,10 +82,11 @@ class ListenerForSpark(conf: SparkConf) extends SparkListener with Logging {
           s"$currentSampleTime," +
           s"$runningTaskNum," +
           s"$currentTotalCores," +
-          s"${(runningTaskNum.asInstanceOf[Double]/currentTotalCores.asInstanceOf[Double]).formatted("%.2f")}," +
+          s"${(runningTaskNum.asInstanceOf[Double]/currentTotalCores.asInstanceOf[Double]).formatted("%.2f")}" +
           s"\n")
         logInfo(s"$appName have $runningTaskNum running tasks")
         reportFile.close()
+        reportFileSource.close()
       }
     }
   }
