@@ -45,7 +45,7 @@ class CoordinatorListenerForSpark(conf: SparkConf) extends SparkListener with Lo
     appId = applicationStart.appId.getOrElse(s"$timeTag")
     appName = applicationStart.appName
     val listener = new Listener()
-    listener.run()
+    listener.start()
   }
 
   override def onTaskStart(taskStart: SparkListenerTaskStart): Unit = {
