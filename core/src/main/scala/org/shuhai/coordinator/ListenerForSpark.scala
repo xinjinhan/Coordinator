@@ -18,32 +18,36 @@
 package org.shuhai.coordinator
 
 import scala.util.Properties
-
 import org.apache.spark.SparkConf
 import org.apache.spark.internal.Logging
-import org.apache.spark.scheduler.{SparkListener, SparkListenerApplicationStart, SparkListenerTaskEnd, SparkListenerTaskStart}
+import org.apache.spark.scheduler.{SparkListener, SparkListenerApplicationStart, SparkListenerExecutorAdded, SparkListenerExecutorRemoved, SparkListenerTaskEnd, SparkListenerTaskStart}
 
-import java.io.{FileWriter, File}
+import java.io.{File, FileWriter}
+import scala.collection.mutable
+import scala.io.Source
 
 class ListenerForSpark(conf: SparkConf) extends SparkListener with Logging {
 
-  val recordElapsedTime = 500
-  var currentDuration = 0
+  val sampleElapsedTime = 500
+  var currentSampleTime = 0
   var runningTaskNum = 0
+  var currentTotalCores = 0
+  var currentExecutorIdToTotalCores: mutable.HashMap[String, Int] = _
   var appId = ""
   var appName = ""
   val sparkHome: String = Properties.envOrElse("SPARK_HOME","/home/root" )
-  val reportPath: String = s"$sparkHome/dynamicParallelism"
+  val reportPath: String = s"$sparkHome/coordinatorReport"
   val reports = new File(reportPath)
+
   reports.mkdirs()
 
   override def onApplicationStart(applicationStart: SparkListenerApplicationStart): Unit = {
-    logInfo("Coordinator: Applicaiton is staertd")
+    logInfo("Coordinator: coordinator listener is started")
     val timeTag = System.currentTimeMillis()
     appId = applicationStart.appId.getOrElse(s"$timeTag")
     appName = applicationStart.appName
-    val p = new Printer()
-    p.start()
+    val listener = new Listener()
+    listener.run()
   }
 
   override def onTaskStart(taskStart: SparkListenerTaskStart): Unit = {
@@ -54,16 +58,35 @@ class ListenerForSpark(conf: SparkConf) extends SparkListener with Logging {
     runningTaskNum -= 1
   }
 
-  class Printer extends Thread {
+  override def onExecutorAdded(executorAdded: SparkListenerExecutorAdded): Unit = {
+    currentExecutorIdToTotalCores.put(executorAdded.executorId, executorAdded.executorInfo.totalCores)
+  }
+
+  override def onExecutorRemoved(executorRemoved: SparkListenerExecutorRemoved): Unit = {
+    currentExecutorIdToTotalCores.remove(executorRemoved.executorId)
+  }
+
+  class Listener extends Thread {
     override def run(): Unit = {
       while (true) {
-        Thread.sleep(recordElapsedTime)
-        val taskParallelismFile = new FileWriter(
+        Thread.sleep(sampleElapsedTime)
+        currentExecutorIdToTotalCores.foreach(c => currentTotalCores += c._2)
+        val reportFile = new FileWriter(
           s"$reportPath/${appName}_$appId.csv",true)
-        currentDuration += recordElapsedTime
-        taskParallelismFile.write(s"$currentDuration,$runningTaskNum\n")
+        val reportFileSource = Source.fromFile(s"$reportPath/${appName}_$appId.csv")
+        if (reportFileSource.getLines().isEmpty) {
+          reportFile.write("ApplicationName,SampleTime,RunningTaskNumber,TotalAvailableCPUCores,RatioOfTasksToTotalCPUCores")
+        }
+        currentSampleTime += sampleElapsedTime
+        reportFile.write(s"" +
+          s"$appName," +
+          s"$currentSampleTime," +
+          s"$runningTaskNum," +
+          s"$currentTotalCores," +
+          s"${runningTaskNum.asInstanceOf[Double]/currentTotalCores.asInstanceOf[Double].formatted("%.2f")}," +
+          s"\n")
         logInfo(s"$appName have $runningTaskNum running tasks")
-        taskParallelismFile.close()
+        reportFile.close()
       }
     }
   }
