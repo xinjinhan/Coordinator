@@ -83,7 +83,7 @@ class ListenerForSpark(conf: SparkConf) extends SparkListener with Logging {
           s"$currentSampleTime," +
           s"$runningTaskNum," +
           s"$currentTotalCores," +
-          s"${runningTaskNum.asInstanceOf[Double]/currentTotalCores.asInstanceOf[Double].formatted("%.2f")}," +
+          s"${(runningTaskNum.asInstanceOf[Double]/currentTotalCores.asInstanceOf[Double]).formatted("%.2f")}," +
           s"\n")
         logInfo(s"$appName have $runningTaskNum running tasks")
         reportFile.close()
