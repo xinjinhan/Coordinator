@@ -17,20 +17,24 @@
 
 package org.shuhai.coordinator
 
-import org.apache.spark.SparkConf
+import org.apache.spark.{SparkConf, Success}
 import org.apache.spark.internal.Logging
 import org.apache.spark.scheduler._
 
 import java.io.{File, FileWriter}
 import scala.collection.mutable
-import scala.io.Source
+import scala.io.{BufferedSource, Source}
 import scala.util.Properties
 
 class CoordinatorListenerForSpark(conf: SparkConf) extends SparkListener with Logging {
 
-  val sampleElapsedTime = 5
+  val sampleElapsedTime = 500
   var currentSampleTime = 0
   var runningTaskNum = 0
+  var ratioOfTasksToTotalCPUCores = 0.00
+  var fullParallelismRunningTime = 0
+  var parallelismAndTime = 0
+  var startTime: Long = 0
   var currentExecutorIdToTotalCores: mutable.HashMap[String, Int] = new mutable.HashMap[String, Int]()
   var appId = ""
   var appName = ""
@@ -38,8 +42,16 @@ class CoordinatorListenerForSpark(conf: SparkConf) extends SparkListener with Lo
   val reportPath: String = s"$sparkHome/coordinatorReport"
   val reports = new File(reportPath)
   reports.mkdirs()
+  val reportFile = new FileWriter(
+    s"$reportPath/coordinator.report",true)
+  val reportFileSource: BufferedSource = Source.fromFile(s"$reportPath/coordinator.report")
+
+  if (reportFileSource.getLines().isEmpty) {
+    reportFile.write("ApplicationName, duration, AverageParallelism, FullParallelismRunningTime, RatioOfFullParallelismRunningTime\n")
+  }
 
   override def onApplicationStart(applicationStart: SparkListenerApplicationStart): Unit = {
+    startTime = applicationStart.time
     logInfo("Coordinator listener is started")
     val timeTag = System.currentTimeMillis()
     appId = applicationStart.appId.getOrElse(s"$timeTag")
@@ -64,30 +76,30 @@ class CoordinatorListenerForSpark(conf: SparkConf) extends SparkListener with Lo
     currentExecutorIdToTotalCores.remove(executorRemoved.executorId)
   }
 
+  override def onApplicationEnd(applicationEnd: SparkListenerApplicationEnd): Unit = {
+    val stopTime = applicationEnd.time
+    val duration = stopTime - startTime
+    reportFile.write(s"$appName, ${duration / 1000.0}, ${(parallelismAndTime.asInstanceOf[Double] / duration.asInstanceOf[Double]).formatted("%.2f")}, ${fullParallelismRunningTime / 1000.0}," +
+      s" ${(fullParallelismRunningTime.asInstanceOf[Double] / duration.asInstanceOf[Double]).formatted("%.2f")}")
+    reportFile.close()
+    reportFileSource.close()
+  }
+
   class Listener extends Thread {
     override def run(): Unit = {
       while (true) {
         Thread.sleep(sampleElapsedTime)
         var currentTotalCores = 0
         currentExecutorIdToTotalCores.foreach(c => currentTotalCores += c._2)
-        val reportFile = new FileWriter(
-          s"$reportPath/${appName}_$appId.csv",true)
-        val reportFileSource = Source.fromFile(s"$reportPath/${appName}_$appId.csv")
-        if (reportFileSource.getLines().isEmpty) {
-          reportFile.write("ApplicationName,SampleTime,RunningTaskNumber,TotalAvailableCPUCores,RatioOfTasksToTotalCPUCores\n")
-        }
         currentSampleTime += sampleElapsedTime
-        reportFile.write(s"" +
-          s"$appName," +
-          s"$currentSampleTime," +
-          s"$runningTaskNum," +
-          s"$currentTotalCores," +
-          s"${(runningTaskNum.asInstanceOf[Double]/currentTotalCores.asInstanceOf[Double]).formatted("%.2f")}" +
-          s"\n")
-        logInfo(s"$appName have $runningTaskNum running tasks")
-        reportFile.close()
-        reportFileSource.close()
+        parallelismAndTime += runningTaskNum * sampleElapsedTime
+        ratioOfTasksToTotalCPUCores = runningTaskNum.asInstanceOf[Double]/currentTotalCores.asInstanceOf[Double]
+      if (ratioOfTasksToTotalCPUCores == 1) {
+        fullParallelismRunningTime += sampleElapsedTime
+      }
+      logInfo(s"$appName have $runningTaskNum running tasks")
       }
     }
   }
+
 }
