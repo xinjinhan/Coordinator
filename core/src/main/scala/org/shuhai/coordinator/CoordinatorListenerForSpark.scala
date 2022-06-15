@@ -80,7 +80,7 @@ class CoordinatorListenerForSpark(conf: SparkConf) extends SparkListener with Lo
     val stopTime = applicationEnd.time
     val duration = stopTime - startTime
     reportFile.write(s"$appName, ${duration / 1000.0}, ${(parallelismAndTime.asInstanceOf[Double] / duration.asInstanceOf[Double]).formatted("%.2f")}, ${fullParallelismRunningTime / 1000.0}," +
-      s" ${(fullParallelismRunningTime.asInstanceOf[Double] / duration.asInstanceOf[Double]).formatted("%.2f")}")
+      s" ${(fullParallelismRunningTime.asInstanceOf[Double] / duration.asInstanceOf[Double]).formatted("%.2f")}\n")
     reportFile.close()
     reportFileSource.close()
   }
