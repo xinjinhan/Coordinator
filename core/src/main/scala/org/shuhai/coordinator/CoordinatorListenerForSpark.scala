@@ -63,8 +63,10 @@ class CoordinatorListenerForSpark(conf: SparkConf) extends SparkListener with Lo
   override def onStageSubmitted(stageSubmitted: SparkListenerStageSubmitted): Unit = {
     conf.set("spark.executor.memory",s"${stageSubmitted.stageInfo.stageId+1}g")
     conf.set("spark.executor.cores",s"${stageSubmitted.stageInfo.stageId+1}")
+    conf.set("spark.sql.shuffle.partitions",s"${(stageSubmitted.stageInfo.stageId+1)*50}")
     logWarning(s"cores is ${conf.get("spark.executor.cores")}")
     logWarning(s"memory is ${conf.get("spark.executor.memory")}")
+    logWarning(s"partitions is ${conf.get("spark.sql.shuffle.partitions")}")
   }
 
   override def onTaskStart(taskStart: SparkListenerTaskStart): Unit = {
