@@ -59,6 +59,7 @@ class CoordinatorListenerForSpark(conf: SparkConf) extends SparkListener with Lo
     appName = applicationStart.appName
     val listener = new Listener()
     listener.start()
+    conf.set("spark.executor.memory", s"2g")
   }
 
   override def onJobStart(jobStart: SparkListenerJobStart): Unit = {
