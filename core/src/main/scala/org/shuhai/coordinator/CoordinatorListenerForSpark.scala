@@ -47,7 +47,7 @@ class CoordinatorListenerForSpark(conf: SparkConf) extends SparkListener with Lo
   val reportFileSource: BufferedSource = Source.fromFile(s"$reportPath/coordinator.report")
 
   if (reportFileSource.getLines().isEmpty) {
-    reportFile.write("ApplicationName, duration, AverageParallelism, FullParallelismRunningTime, RatioOfFullParallelismRunningTime\n")
+    reportFile.write("ApplicationName, duration, AverageParallelism, FullParallelismRunningTime, RatioOfFullParallelismRunningTime, FinalStatus\n")
   }
 
   override def onApplicationStart(applicationStart: SparkListenerApplicationStart): Unit = {
@@ -58,6 +58,11 @@ class CoordinatorListenerForSpark(conf: SparkConf) extends SparkListener with Lo
     appName = applicationStart.appName
     val listener = new Listener()
     listener.start()
+  }
+
+  override def onStageSubmitted(stageSubmitted: SparkListenerStageSubmitted): Unit = {
+    conf.set("spark.executor.memory",s"${stageSubmitted.stageInfo.stageId.asInstanceOf[String]}g")
+    conf.set("spark.executor.cores",s"${stageSubmitted.stageInfo.stageId.asInstanceOf[String]}")
   }
 
   override def onTaskStart(taskStart: SparkListenerTaskStart): Unit = {
@@ -79,7 +84,8 @@ class CoordinatorListenerForSpark(conf: SparkConf) extends SparkListener with Lo
   override def onApplicationEnd(applicationEnd: SparkListenerApplicationEnd): Unit = {
     val stopTime = applicationEnd.time
     val duration = stopTime - startTime
-    reportFile.write(s"$appName, ${duration / 1000.0}, ${(parallelismAndTime.asInstanceOf[Double] / duration.asInstanceOf[Double]).formatted("%.2f")}, ${fullParallelismRunningTime / 1000.0}," +
+    reportFile.write(s"$appName, ${duration / 1000.0}, ${(parallelismAndTime.asInstanceOf[Double] /
+      duration.asInstanceOf[Double]).formatted("%.2f")}, ${fullParallelismRunningTime / 1000.0}," +
       s" ${(fullParallelismRunningTime.asInstanceOf[Double] / duration.asInstanceOf[Double]).formatted("%.2f")}\n")
     reportFile.close()
     reportFileSource.close()
