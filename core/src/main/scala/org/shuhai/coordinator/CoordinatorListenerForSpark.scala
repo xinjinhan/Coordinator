@@ -52,6 +52,7 @@ class CoordinatorListenerForSpark(conf: SparkConf) extends SparkListener with Lo
   }
 
   override def onApplicationStart(applicationStart: SparkListenerApplicationStart): Unit = {
+    conf.set("spark.executor.memory", s"2g")
     startTime = applicationStart.time
     logInfo("Coordinator listener is started")
     val timeTag = System.currentTimeMillis()
@@ -59,7 +60,6 @@ class CoordinatorListenerForSpark(conf: SparkConf) extends SparkListener with Lo
     appName = applicationStart.appName
     val listener = new Listener()
     listener.start()
-    conf.set("spark.executor.memory", s"2g")
   }
 
   override def onJobStart(jobStart: SparkListenerJobStart): Unit = {
