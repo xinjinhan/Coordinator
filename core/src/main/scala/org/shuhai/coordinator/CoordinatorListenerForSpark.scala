@@ -41,13 +41,14 @@ class CoordinatorListenerForSpark(conf: SparkConf) extends SparkListener with Lo
   val sparkHome: String = Properties.envOrElse("SPARK_HOME","/home/root" )
   val reportPath: String = s"$sparkHome/coordinatorReport"
   val reports = new File(reportPath)
+  val l = Seq(10,5,8,9)
   reports.mkdirs()
   val reportFile = new FileWriter(
     s"$reportPath/coordinator.report",true)
   val reportFileSource: BufferedSource = Source.fromFile(s"$reportPath/coordinator.report")
 
   if (reportFileSource.getLines().isEmpty) {
-    reportFile.write("ApplicationName, duration, AverageParallelism, FullParallelismRunningTime, RatioOfFullParallelismRunningTime, FinalStatus\n")
+    reportFile.write("ApplicationName, duration, AverageParallelism, FullParallelismRunningTime, RatioOfFullParallelismRunningTime\n")
   }
 
   override def onApplicationStart(applicationStart: SparkListenerApplicationStart): Unit = {
@@ -60,10 +61,10 @@ class CoordinatorListenerForSpark(conf: SparkConf) extends SparkListener with Lo
     listener.start()
   }
 
-  override def onStageSubmitted(stageSubmitted: SparkListenerStageSubmitted): Unit = {
-    conf.set("spark.executor.memory",s"${stageSubmitted.stageInfo.stageId+1}g")
-    conf.set("spark.executor.cores",s"${stageSubmitted.stageInfo.stageId+1}")
-    conf.set("spark.sql.shuffle.partitions",s"${(stageSubmitted.stageInfo.stageId+1)*50}")
+  override def onJobStart(jobStart: SparkListenerJobStart): Unit = {
+    conf.set("spark.executor.memory", s"${jobStart.jobId + 1}g")
+    conf.set("spark.executor.cores",s"${jobStart.jobId+1}")
+    conf.set("spark.sql.shuffle.partitions",s"${(jobStart.jobId+1)*50}")
     logWarning(s"cores is ${conf.get("spark.executor.cores")}")
     logWarning(s"memory is ${conf.get("spark.executor.memory")}")
     logWarning(s"partitions is ${conf.get("spark.sql.shuffle.partitions")}")
